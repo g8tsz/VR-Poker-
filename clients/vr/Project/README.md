@@ -11,8 +11,9 @@ Open this folder as the Unity project root (`clients/vr/Project`).
 5. Symlink or copy script folders into `Assets/VRPoker/`:
    - `../client-core/unity`
    - `../netcode/unity`
+   - `../interaction/unity`
    - `../audio/unity`
-   - (later) `../interaction/unity`, `../rendering/unity`, `../platform/unity`
+   - (later) `../rendering/unity`, `../platform/unity`
 
 ## Scene hierarchy (recommended)
 
@@ -27,6 +28,10 @@ VrAppBootstrap
 │   ├── WebSocketTableClient
 │   ├── VrPresenceBroadcaster
 │   └── ServerAuthoritativeTableView
+├── Interaction
+│   ├── PokerInteractionController
+│   ├── PokerActionRelay + BettingActionPad
+│   └── LocalAvatarVisual
 └── AudioBus + VrAudioSession + TableAudioDirector
 ```
 
