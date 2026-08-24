@@ -1,27 +1,22 @@
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { Table, type PlayerAction } from "@vr-poker/core";
-import { CsprngDealSource } from "@vr-poker/deal";
-import { ChipLedger } from "@vr-poker/ledger";
+import type { PlayerAction } from "@vr-poker/core";
+import { renderTable } from "./render.ts";
+import { createLocalSession, createRemoteSession, type FlatSession } from "./session.ts";
 
-const ledger = new ChipLedger();
-const table = new Table("felt-1", new CsprngDealSource(), {
-  seats: 6,
-  smallBlind: 50,
-  bigBlind: 100,
-  minBuyIn: 4_000,
-  maxBuyIn: 20_000,
-  rakePercent: 0.05,
-  rakeCap: 300,
-  noFlopNoRake: true,
-  actionTimeoutMs: 60_000,
-});
+function parseArgs(argv: string[]): { remote?: string; table?: string } {
+  let remote: string | undefined;
+  let table: string | undefined;
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--remote") remote = argv[++i];
+    else if (argv[i] === "--table") table = argv[++i];
+  }
+  return { remote, table };
+}
 
-let viewAs: string | null = null;
-
-function printHelp(): void {
+function printHelp(mode: string): void {
   console.log(`
-VR Poker — flat test client (server-authoritative engine, local)
+VR Poker — flat test client (${mode})
 
   account <id> <name>     seed 100,000 chips (first time)
   sit <id> <name> <buyin> [seat]
@@ -35,47 +30,26 @@ VR Poker — flat test client (server-authoritative engine, local)
   state                   dump snapshot + ledger
   help
   quit
+
+Flags: --remote <url>  --table <id>
 `);
 }
 
-function render(): void {
-  const snap = table.snapshot(viewAs ?? undefined);
-  console.log("\n────────────────────────────────────────");
-  console.log(`table ${snap.tableId}  street=${snap.street}  hand=#${snap.handId}  pot=${snap.pot}`);
-  console.log(`board ${snap.board.join(" ") || "—"}   button=${snap.buttonSeat ?? "—"}  toAct=${snap.toActSeat ?? "—"}`);
-  if (snap.commitment) console.log(`commit ${snap.commitment.slice(0, 24)}…`);
-  for (const p of snap.players) {
-    if (!p.playerId) continue;
-    const tags = [
-      p.seat === snap.buttonSeat ? "BTN" : "",
-      p.folded ? "FOLD" : "",
-      p.allIn ? "ALL-IN" : "",
-      p.seat === snap.toActSeat ? "<<" : "",
-    ]
-      .filter(Boolean)
-      .join(" ");
-    const hole = p.hole?.join(" ") ?? (p.playerId === viewAs ? "" : "xx xx");
-    console.log(
-      `  seat ${p.seat}  ${p.name.padEnd(12)}  stack ${String(p.stack).padStart(6)}  in ${p.streetCommit}  ${hole}  ${tags}`,
-    );
-  }
-  if (snap.legal.length) {
-    console.log(
-      "legal: " +
-        snap.legal
-          .map((a) => (a.min != null ? `${a.type} ${a.min}${a.max != null && a.max !== a.min ? "–" + a.max : ""}` : a.type))
-          .join(" · "),
-    );
-  }
-  if (snap.winners?.length) {
-    console.log("winners: " + snap.winners.map((w) => `${w.playerId} +${w.amount} ${w.hand ?? ""}`).join(" | "));
-  }
-  for (const e of snap.lastEvents) console.log("  · " + e);
-  if (viewAs) console.log(`viewing as ${viewAs}  bankroll ${ledger.balance(viewAs)}`);
-}
-
 async function main(): Promise<void> {
-  printHelp();
+  const { remote, table } = parseArgs(process.argv.slice(2));
+  const session: FlatSession = remote
+    ? await createRemoteSession(remote, table ?? "felt-remote")
+    : createLocalSession(table ?? "felt-1");
+
+  let viewAs: string | null = null;
+
+  async function render(): Promise<void> {
+    const snap = await session.snapshot(viewAs ?? undefined);
+    const bankroll = viewAs ? await session.balance(viewAs) : undefined;
+    console.log(renderTable(snap, viewAs, bankroll));
+  }
+
+  printHelp(session.mode);
   const rl = readline.createInterface({ input, output });
   for (;;) {
     const line = (await rl.question("> ")).trim();
@@ -84,7 +58,7 @@ async function main(): Promise<void> {
     try {
       switch (cmd) {
         case "help":
-          printHelp();
+          printHelp(session.mode);
           break;
         case "quit":
         case "exit":
@@ -93,33 +67,25 @@ async function main(): Promise<void> {
         case "account": {
           const [id, name] = args;
           if (!id) throw new Error("account <id> [name]");
-          if (ledger.history(id).length === 0) ledger.append(id, 100_000, "seed");
-          console.log(`${name ?? id} bankroll ${ledger.balance(id)}`);
+          await session.ensureAccount(id, name ?? id);
+          console.log(`${name ?? id} bankroll ${await session.balance(id)}`);
           break;
         }
         case "sit": {
           const [id, name, buy, seat] = args;
           if (!id || !name || !buy) throw new Error("sit <id> <name> <buyin> [seat]");
-          if (ledger.history(id).length === 0) ledger.append(id, 100_000, "seed");
-          const buyIn = Number(buy);
-          ledger.buyIn(id, buyIn, table.tableId);
-          try {
-            table.sit(id, name, buyIn, seat === undefined ? undefined : Number(seat));
-          } catch (e) {
-            ledger.cashOut(id, buyIn, table.tableId);
-            throw e;
-          }
+          await session.sit(id, name, Number(buy), seat === undefined ? undefined : Number(seat));
           if (!viewAs) viewAs = id;
-          render();
+          await render();
           break;
         }
         case "as":
           viewAs = args[0] ?? null;
-          render();
+          await render();
           break;
         case "start":
-          table.startHand();
-          render();
+          await session.start();
+          await render();
           break;
         case "fold":
         case "check":
@@ -128,36 +94,33 @@ async function main(): Promise<void> {
         case "all-in": {
           if (!viewAs) throw new Error("as <id> first");
           const type = cmd === "allin" ? "all-in" : cmd;
-          table.act(viewAs, { type: type as PlayerAction["type"] });
-          render();
+          await session.act(viewAs, { type: type as PlayerAction["type"] });
+          await render();
           break;
         }
         case "bet":
         case "raise": {
           if (!viewAs) throw new Error("as <id> first");
-          table.act(viewAs, { type: cmd, amount: Number(args[0]) });
-          render();
+          await session.act(viewAs, { type: cmd, amount: Number(args[0]) });
+          await render();
           break;
         }
         case "addon": {
           if (!viewAs) throw new Error("as <id> first");
-          const amount = Number(args[0]);
-          ledger.addOn(viewAs, amount, table.tableId);
-          table.addOn(viewAs, amount);
-          render();
+          await session.addOn(viewAs, Number(args[0]));
+          await render();
           break;
         }
         case "leave": {
           if (!viewAs) throw new Error("as <id> first");
-          const chips = table.cashOut(viewAs);
-          if (chips) ledger.cashOut(viewAs, chips, table.tableId);
-          console.log(`cashed out ${chips}  bankroll ${ledger.balance(viewAs)}`);
+          const chips = await session.leave(viewAs);
+          console.log(`cashed out ${chips}  bankroll ${await session.balance(viewAs)}`);
           viewAs = null;
           break;
         }
         case "state":
-          render();
-          console.log(JSON.stringify(table.snapshot(viewAs ?? undefined), null, 2));
+          await render();
+          console.log(JSON.stringify(await session.snapshot(viewAs ?? undefined), null, 2));
           break;
         default:
           console.log("unknown command — help");

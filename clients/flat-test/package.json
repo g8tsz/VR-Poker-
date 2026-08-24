@@ -3,7 +3,12 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "play": "tsx src/cli.ts"
+    "play": "tsx src/cli.ts",
+    "play:remote": "tsx src/cli.ts --remote http://127.0.0.1:8787",
+    "demo": "tsx src/demo.ts",
+    "demo:remote": "tsx src/demo.ts --remote http://127.0.0.1:8787",
+    "web": "tsx src/web.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@vr-poker/core": "0.1.0",
@@ -13,6 +18,7 @@
   "devDependencies": {
     "@types/node": "^24.3.0",
     "tsx": "^4.20.5",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
   }
 }
