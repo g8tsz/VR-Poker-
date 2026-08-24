@@ -1,10 +1,12 @@
 # VR client
 
-Unity / Meta Quest client. Work is split across branches:
+Unity / Meta Quest client. **Project root:** [`Project/`](./Project/) (open in Unity Hub).
+
+Work is split across branches:
 
 | Branch | Folder |
 |--------|--------|
-| `feat/vr-client-core` | [client-core/](./client-core/) |
+| `feat/vr-client-core` | [client-core/](./client-core/) + [Project/](./Project/) |
 | `feat/vr-interaction` | [interaction/](./interaction/) |
 | `feat/vr-netcode` | [netcode/](./netcode/) |
 | `feat/vr-rendering` | [rendering/](./rendering/) |
