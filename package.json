@@ -5,11 +5,16 @@
   "workspaces": [
     "packages/*",
     "services/*",
-    "clients/*"
+    "clients/*",
+    "infra"
   ],
   "scripts": {
-    "test": "npm test -w @vr-poker/core -w @vr-poker/deal -w @vr-poker/ledger -w @vr-poker/tournament -w @vr-poker/cosmetics -w @vr-poker/flat-test",
+    "test": "npm test -w @vr-poker/core -w @vr-poker/deal -w @vr-poker/ledger -w @vr-poker/tournament -w @vr-poker/cosmetics -w @vr-poker/flat-test -w @vr-poker/auth -w @vr-poker/deal-rng",
     "dev": "npm run dev -w @vr-poker/game-server",
+    "deal": "npm run dev -w @vr-poker/deal-rng",
+    "migrate": "npm run migrate -w @vr-poker/infra",
+    "stack": "docker compose -f infra/docker-compose.yml up --build",
+    "stack:down": "docker compose -f infra/docker-compose.yml down",
     "tournament": "npm run dev -w @vr-poker/tournament-service",
     "cosmetics": "npm run dev -w @vr-poker/cosmetics-service",
     "play": "npm run play -w @vr-poker/flat-test",

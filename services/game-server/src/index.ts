@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { AuthError, authConfigFromEnv, requireAuthHeader } from "@vr-poker/auth";
 import { PokerError, Table, type PlayerAction, type TableConfig } from "@vr-poker/core";
 import { CsprngDealSource } from "@vr-poker/deal";
 import { ChipLedger, LedgerError } from "@vr-poker/ledger";
@@ -67,6 +68,10 @@ function armTimeout(table: Table): void {
 }
 
 function handleError(res: ServerResponse, err: unknown): void {
+  if (err instanceof AuthError) {
+    json(res, 401, { error: err.message });
+    return;
+  }
   if (err instanceof PokerError || err instanceof LedgerError) {
     json(res, 400, { error: err.message });
     return;
@@ -81,7 +86,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(204, {
         "access-control-allow-origin": "*",
         "access-control-allow-methods": "GET,POST,OPTIONS",
-        "access-control-allow-headers": "content-type",
+        "access-control-allow-headers": "content-type, authorization",
       });
       res.end();
       return;
@@ -96,11 +101,12 @@ const server = createServer(async (req, res) => {
 
     if (req.method === "POST" && path === "/accounts") {
       const body = await readBody(req);
-      const playerId = String(body.playerId ?? "");
-      const name = String(body.name ?? playerId);
+      const authUser = await requireAuthHeader(req.headers.authorization, authConfigFromEnv());
+      const playerId = authUser?.subject ?? String(body.playerId ?? "");
+      const name = String(body.name ?? authUser?.email ?? playerId);
       if (!playerId) throw new PokerError("playerId required");
       ensureAccount(playerId, name);
-      json(res, 200, { playerId, name, balance: ledger.balance(playerId) });
+      json(res, 200, { playerId, name, balance: ledger.balance(playerId), authSubject: authUser?.subject ?? null });
       return;
     }
 

@@ -1,4 +1,6 @@
-# Node
+data/
+infra/.env
+
 node_modules/
 dist/
 build/
