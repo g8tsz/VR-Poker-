@@ -4,6 +4,7 @@ import { PokerError, Table, type PlayerAction, type TableConfig } from "@vr-poke
 import { CsprngDealSource } from "@vr-poker/deal";
 import { ChipLedger, LedgerError } from "@vr-poker/ledger";
 import { WebSocketServer } from "ws";
+import { WsHub } from "./ws.ts";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const deal = new CsprngDealSource();
@@ -11,7 +12,7 @@ const ledger = new ChipLedger();
 const tables = new Map<string, Table>();
 const names = new Map<string, string>();
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
-const sockets = new Set<{ tableId: string; playerId?: string; send: (s: string) => void }>();
+const wsHub = new WsHub();
 
 function json(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "content-type": "application/json", "access-control-allow-origin": "*" });
@@ -40,12 +41,7 @@ function tableOrThrow(id: string): Table {
 }
 
 function broadcast(tableId: string): void {
-  const t = tables.get(tableId);
-  if (!t) return;
-  for (const s of sockets) {
-    if (s.tableId !== tableId) continue;
-    s.send(JSON.stringify({ type: "state", state: t.snapshot(s.playerId) }));
-  }
+  wsHub.broadcast(tableId);
 }
 
 function armTimeout(table: Table): void {
@@ -228,17 +224,15 @@ wss.on("connection", (ws, req) => {
   const url = new URL(req.url ?? "/", `http://127.0.0.1:${PORT}`);
   const tableId = url.searchParams.get("tableId") ?? "";
   const playerId = url.searchParams.get("playerId") ?? undefined;
-  const client = {
+  const client = { tableId, playerId, ws };
+  const room = wsHub.room(
     tableId,
-    playerId,
-    send: (s: string) => {
-      if (ws.readyState === ws.OPEN) ws.send(s);
-    },
-  };
-  sockets.add(client);
-  const t = tables.get(tableId);
-  if (t) client.send(JSON.stringify({ type: "state", state: t.snapshot(playerId) }));
-  ws.on("close", () => sockets.delete(client));
+    (id) => tables.get(id),
+    (table) => armTimeout(table),
+  );
+  room.add(client);
+  ws.on("message", (data) => room.handleMessage(client, String(data)));
+  ws.on("close", () => room.remove(client));
 });
 
 server.listen(PORT, () => {

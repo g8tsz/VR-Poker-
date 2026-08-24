@@ -9,7 +9,7 @@
     "infra"
   ],
   "scripts": {
-    "test": "npm test -w @vr-poker/core -w @vr-poker/deal -w @vr-poker/ledger -w @vr-poker/tournament -w @vr-poker/cosmetics -w @vr-poker/flat-test -w @vr-poker/auth -w @vr-poker/deal-rng -w @vr-poker/netcode",
+    "test": "npm test -w @vr-poker/core -w @vr-poker/deal -w @vr-poker/ledger -w @vr-poker/tournament -w @vr-poker/cosmetics -w @vr-poker/flat-test -w @vr-poker/auth -w @vr-poker/deal-rng -w @vr-poker/netcode -w @vr-poker/game-server",
     "dev": "npm run dev -w @vr-poker/game-server",
     "ledger": "npm run dev -w @vr-poker/ledger-service",
     "deal": "npm run dev -w @vr-poker/deal-rng",

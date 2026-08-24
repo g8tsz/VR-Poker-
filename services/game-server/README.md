@@ -38,7 +38,7 @@ curl -s localhost:8787/tables/felt-1?playerId=alice
 curl -s -X POST localhost:8787/tables/felt-1/act -H "content-type: application/json" -d "{\"playerId\":\"alice\",\"type\":\"fold\"}"
 ```
 
-WebSocket: `ws://127.0.0.1:8787/ws?tableId=felt-1&playerId=alice`
+WebSocket: `ws://127.0.0.1:8787/ws?tableId=felt-1&playerId=alice` — protocol v1 (`@vr-poker/netcode`). Send `{ "type": "action", "action": { "type": "fold" } }`; receive `{ "type": "state", "seq", "state" }` and `{ "type": "presence", "poses" }`. See [docs/netcode-protocol.md](../../docs/netcode-protocol.md).
 
 ## Checklist
 

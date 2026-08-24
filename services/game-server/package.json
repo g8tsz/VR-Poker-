@@ -11,6 +11,7 @@
     "@vr-poker/core": "0.1.0",
     "@vr-poker/deal": "0.1.0",
     "@vr-poker/ledger": "0.1.0",
+    "@vr-poker/netcode": "0.1.0",
     "ws": "^8.18.3"
   },
   "devDependencies": {
