@@ -1,21 +1,11 @@
-# Deal / RNG Service
+# Deal / RNG
 
-**Branch:** `feat/deal-rng-service`
+**Branch:** `feat/deal-rng-service` (library lives in `packages/deal`, used by the game server)
 
-CSPRNG-seeded shuffle and the public fairness contract. Game server never shuffles.
+- [x] CSPRNG-seeded shuffle (Fisher-Yates, unbiased index)
+- [x] Commit-reveal (`SHA-256(seed || nonce)` pre-deal, reveal post-hand)
+- [x] Hand-result JSON helper (deck order, hole cards, board)
+- [x] Statistical/bias tests on first-card distribution
+- [x] Immutable per-hand commitment string (engine logs it)
 
-## Checklist
-
-- [ ] CSPRNG-seeded shuffle (Fisher-Yates)
-- [ ] Commit-reveal seed scheme (hash pre-deal, reveal post-hand)
-- [ ] Hand-result JSON contract (deck order, hole cards, board cards)
-- [ ] Statistical / bias unit tests on the shuffle
-- [ ] Hand history logging (immutable, per-hand record)
-
-## Notes
-
-- Use `crypto.randomBytes` (or equivalent), never a non-crypto PRNG.
-- Commitment is published before any hole card is returned.
-- Reveal is only allowed after showdown/payout (or a cancelled hand with a recorded reason).
-- Hand history is append-only; corrections are new records, not edits.
-- See [docs/fairness.md](../../docs/fairness.md).
+See `packages/deal`.

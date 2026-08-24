@@ -1,0 +1,18 @@
+{
+  "name": "vr-poker",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "clients/*"
+  ],
+  "scripts": {
+    "test": "npm test -w @vr-poker/core -w @vr-poker/deal -w @vr-poker/ledger",
+    "dev": "npm run dev -w @vr-poker/game-server",
+    "play": "npm run play -w @vr-poker/flat-test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

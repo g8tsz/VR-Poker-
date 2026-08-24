@@ -58,6 +58,15 @@ Work happens on **one git branch per section**. See [BRANCHES.md](./BRANCHES.md)
 
 Checkout a section, implement against its README checklist, open a PR into `main`.
 
+## Run (NLHE, buy-in, multi-seat)
+
+```bash
+npm install
+npm test                 # engine, deal fairness, ledger
+npm run play             # terminal felt
+npm run dev              # HTTP + WS on :8787
+```
+
 ## Stack (intended)
 
 **Backend:** TypeScript services, Postgres, managed auth  
