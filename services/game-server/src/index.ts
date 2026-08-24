@@ -4,6 +4,7 @@ import { PokerError, Table, type PlayerAction, type TableConfig } from "@vr-poke
 import { CsprngDealSource } from "@vr-poker/deal";
 import { ChipLedger, LedgerError } from "@vr-poker/ledger";
 import { WebSocketServer } from "ws";
+import { leaveTable, sitAtTable, startTableHand } from "./table-ops.ts";
 import { WsHub } from "./ws.ts";
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -13,6 +14,22 @@ const tables = new Map<string, Table>();
 const names = new Map<string, string>();
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 const wsHub = new WsHub();
+
+const tableOpsCtx = {
+  tables,
+  ledger,
+  names,
+  ensureAccount,
+  armTimeout,
+};
+
+function broadcastTable(tableId: string): void {
+  const table = tables.get(tableId);
+  wsHub.broadcast(tableId);
+  if (table?.finalizeHandIfComplete()) {
+    wsHub.broadcast(tableId);
+  }
+}
 
 function json(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "content-type": "application/json", "access-control-allow-origin": "*" });
@@ -41,7 +58,7 @@ function tableOrThrow(id: string): Table {
 }
 
 function broadcast(tableId: string): void {
-  wsHub.broadcast(tableId);
+  broadcastTable(tableId);
 }
 
 function armTimeout(table: Table): void {
@@ -132,21 +149,15 @@ const server = createServer(async (req, res) => {
 
     const sit = path.match(/^\/tables\/([^/]+)\/sit$/);
     if (req.method === "POST" && sit) {
-      const table = tableOrThrow(sit[1]!);
+      const tableId = sit[1]!;
       const body = await readBody(req);
       const playerId = String(body.playerId ?? "");
       const name = String(body.name ?? playerId);
       const buyIn = Number(body.buyIn);
       const seat = body.seat === undefined ? undefined : Number(body.seat);
-      ensureAccount(playerId, name);
-      ledger.buyIn(playerId, buyIn, table.tableId);
-      try {
-        table.sit(playerId, name, buyIn, seat);
-      } catch (err) {
-        ledger.cashOut(playerId, buyIn, table.tableId);
-        throw err;
-      }
-      broadcast(table.tableId);
+      sitAtTable(tableOpsCtx, tableId, playerId, name, buyIn, seat);
+      broadcast(tableId);
+      const table = tableOrThrow(tableId);
       json(res, 200, table.snapshot(playerId));
       return;
     }
@@ -170,21 +181,21 @@ const server = createServer(async (req, res) => {
 
     const leave = path.match(/^\/tables\/([^/]+)\/leave$/);
     if (req.method === "POST" && leave) {
-      const table = tableOrThrow(leave[1]!);
+      const tableId = leave[1]!;
       const body = await readBody(req);
       const playerId = String(body.playerId ?? "");
-      const chips = table.cashOut(playerId);
-      if (chips > 0) ledger.cashOut(playerId, chips, table.tableId);
+      const chips = leaveTable(tableOpsCtx, tableId, playerId);
+      broadcast(tableId);
       json(res, 200, { playerId, cashedOut: chips, balance: ledger.balance(playerId) });
       return;
     }
 
     const start = path.match(/^\/tables\/([^/]+)\/start$/);
     if (req.method === "POST" && start) {
-      const table = tableOrThrow(start[1]!);
-      table.startHand();
-      armTimeout(table);
-      broadcast(table.tableId);
+      const tableId = start[1]!;
+      startTableHand(tableOpsCtx, tableId);
+      broadcast(tableId);
+      const table = tableOrThrow(tableId);
       json(res, 200, table.snapshot());
       return;
     }
@@ -225,11 +236,12 @@ wss.on("connection", (ws, req) => {
   const tableId = url.searchParams.get("tableId") ?? "";
   const playerId = url.searchParams.get("playerId") ?? undefined;
   const client = { tableId, playerId, ws };
-  const room = wsHub.room(
-    tableId,
-    (id) => tables.get(id),
-    (table) => armTimeout(table),
-  );
+  const room = wsHub.room(tableId, {
+    getTable: (id) => tables.get(id),
+    onAction: (table) => armTimeout(table),
+    onBroadcast: broadcastTable,
+    tableOps: tableOpsCtx,
+  });
   room.add(client);
   ws.on("message", (data) => room.handleMessage(client, String(data)));
   ws.on("close", () => room.remove(client));

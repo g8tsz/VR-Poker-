@@ -48,6 +48,10 @@ describe("heads-up NLHE", () => {
     expect(pre.players.find((p) => p.playerId === "bob")!.streetCommit).toBe(100);
 
     t.act("alice", { type: "fold" });
+    const payout = t.snapshot();
+    expect(payout.street).toBe("payout");
+    expect(t.needsHandFinalize()).toBe(true);
+    t.finalizeHandIfComplete();
     const end = t.snapshot();
     expect(end.street).toBe("waiting");
     const alice = end.players.find((p) => p.playerId === "alice")!;
@@ -70,6 +74,8 @@ describe("heads-up NLHE", () => {
     expect(t.snapshot().street).toBe("river");
     t.act("bob", { type: "check" });
     t.act("alice", { type: "check" });
+    expect(t.snapshot().street).toBe("payout");
+    t.finalizeHandIfComplete();
     const end = t.snapshot();
     expect(end.street).toBe("waiting");
     expect((end.winners?.length ?? 0) >= 1).toBe(true);
@@ -95,6 +101,7 @@ describe("all-in runout", () => {
     t.startHand();
     t.act("alice", { type: "all-in" });
     t.act("bob", { type: "call" });
+    t.finalizeHandIfComplete();
     const end = t.snapshot();
     expect(end.street).toBe("waiting");
     const a = end.players.find((p) => p.playerId === "alice")!.stack;
@@ -124,6 +131,8 @@ describe("multiway", () => {
     expect(s.toActSeat).toBe(0);
     t.act("a", { type: "fold" });
     t.act("b", { type: "fold" });
+    expect(t.snapshot().street).toBe("payout");
+    t.finalizeHandIfComplete();
     const end = t.snapshot();
     expect(end.players.find((p) => p.playerId === "c")!.stack).toBe(10_050);
   });

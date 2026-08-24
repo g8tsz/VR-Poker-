@@ -51,6 +51,7 @@ export class Table {
   private events: string[] = [];
   private winners: TableSnapshot["winners"];
   private flopSeen = false;
+  private handAwaitingFinalize = false;
 
   constructor(tableId: string, dealSource: DealSource, config: Partial<TableConfig> = {}) {
     this.tableId = tableId;
@@ -115,6 +116,19 @@ export class Table {
 
   seatedCount(): number {
     return this.seats.filter((s) => s && !s.sittingOut).length;
+  }
+
+  /** True while street is <c>payout</c> and cleanup has not run yet (wire clients see payout snapshot). */
+  needsHandFinalize(): boolean {
+    return this.handAwaitingFinalize;
+  }
+
+  /** Clears hand state after payout snapshot has been broadcast. Returns true if cleanup ran. */
+  finalizeHandIfComplete(): boolean {
+    if (!this.handAwaitingFinalize) return false;
+    this.handAwaitingFinalize = false;
+    this.finishHand();
+    return true;
   }
 
   startHand(): void {
@@ -513,7 +527,7 @@ export class Table {
     if (totalRake > 0) this.log(`rake ${totalRake}`);
     this.winners = awards;
     this.street = "payout";
-    this.finishHand();
+    this.handAwaitingFinalize = true;
   }
 
   private awardUncontested(winner: Seat): void {
@@ -541,7 +555,7 @@ export class Table {
     winner.stack += amount;
     this.winners = [{ playerId: winner.playerId, amount }];
     this.log(`${winner.name} wins ${amount} uncontested`);
-    this.finishHand();
+    this.handAwaitingFinalize = true;
   }
 
   private finishHand(): void {
@@ -671,6 +685,7 @@ export class Table {
   }
 
   private assertIdle(): void {
+    if (this.handAwaitingFinalize) this.finalizeHandIfComplete();
     if (this.street !== "waiting") throw new PokerError("hand in progress");
   }
 

@@ -3,15 +3,21 @@ import type { PresencePose } from "./pose.ts";
 
 /** Poker truth + table events — game server only. */
 export type ServerMessage =
-  | { type: "welcome"; tableId: string; playerId?: string; protocol: 1 }
+  | { type: "welcome"; tableId: string; playerId?: string; protocol: 1; serverTime: number }
   | { type: "state"; seq: number; state: TableSnapshot }
-  | { type: "presence"; seq: number; poses: Record<string, PresencePose> }
+  | { type: "presence"; seq: number; serverTime: number; poses: Record<string, PresencePose> }
+  | { type: "pong"; serverTime: number }
+  | { type: "left"; playerId: string; cashedOut: number }
   | { type: "error"; message: string };
 
 /** Client → server. Actions are intents; server accepts or rejects via next state. */
 export type ClientMessage =
   | { type: "action"; action: PlayerAction }
-  | { type: "presence"; pose: PresencePose };
+  | { type: "presence"; pose: Omit<PresencePose, "t" | "playerId"> & { t?: number; playerId?: string } }
+  | { type: "sit"; name: string; buyIn: number; seat?: number }
+  | { type: "leave" }
+  | { type: "start" }
+  | { type: "ping" };
 
 export function parseClientMessage(raw: string): ClientMessage | null {
   try {
@@ -22,6 +28,12 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     if (msg.type === "presence" && typeof msg === "object" && msg !== null && "pose" in msg) {
       return msg as ClientMessage;
     }
+    if (msg.type === "sit" && typeof msg === "object" && msg !== null && "name" in msg && "buyIn" in msg) {
+      return msg as ClientMessage;
+    }
+    if (msg.type === "leave") return { type: "leave" };
+    if (msg.type === "start") return { type: "start" };
+    if (msg.type === "ping") return { type: "ping" };
     return null;
   } catch {
     return null;

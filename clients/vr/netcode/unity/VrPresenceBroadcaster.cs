@@ -4,6 +4,7 @@ namespace VRPoker.Netcode
 {
     /// <summary>
     /// Samples local XR rig transforms and streams presence to the game server (~20 Hz).
+    /// Server stamps authoritative timestamps on relay; client <c>t</c> is ignored.
     /// </summary>
     public sealed class VrPresenceBroadcaster : MonoBehaviour
     {
@@ -17,14 +18,12 @@ namespace VRPoker.Netcode
 
         void Update()
         {
-            if (_client == null || _head == null) return;
+            if (_client == null || _head == null || !_client.IsConnected) return;
             if (Time.unscaledTime < _next) return;
             _next = Time.unscaledTime + 1f / _hz;
 
-            var t = (long)(Time.unscaledTimeAsDouble * 1000);
             var json =
-                $"{{\"playerId\":\"{_client.PlayerId}\",\"t\":{t}," +
-                $"\"head\":{PoseJson(_head)}," +
+                $"{{\"head\":{PoseJson(_head)}," +
                 $"\"leftHand\":{PoseJson(_leftHand)}," +
                 $"\"rightHand\":{PoseJson(_rightHand)}}}";
             _client.SendPresenceJson(json);
