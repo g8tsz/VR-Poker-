@@ -99,6 +99,25 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  ledger:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ..:/app
+    command: sh -c "npm ci && npm run dev -w @vr-poker/ledger-service"
+    ports:
+      - "8786:8786"
+    environment:
+      PORT: 8786
+      DATABASE_URL: postgres://${POSTGRES_USER:-vrpoker}:${POSTGRES_PASSWORD:-vrpoker}@postgres:5432/${POSTGRES_DB:-vrpoker}
+      AUTH_DISABLED: ${AUTH_DISABLED:-1}
+      AUTH_DEV_SECRET: ${AUTH_DEV_SECRET:-vr-poker-dev-secret-change-me}
+      AUTH_ISSUER: ${AUTH_ISSUER:-vr-poker-local}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:-vr-poker-api}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
 volumes:
   vrpoker_pg:
   vrpoker_deal:
