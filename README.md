@@ -2,7 +2,7 @@
 
 Server-authoritative Texas Hold'em for Meta Quest. Clubs, virtual chips, cosmetic economy — **never** real-money-to-chip conversion.
 
-Work happens on **one git branch per section**. See [BRANCHES.md](./BRANCHES.md).
+`main` integrates all workstreams (backend services, flat test client, Unity VR modules). Historical feature branches remain for reference; develop on `main` or open section PRs from `feat/*` as described in [BRANCHES.md](./BRANCHES.md).
 
 | Layer | Owns |
 |-------|------|
@@ -12,7 +12,7 @@ Work happens on **one git branch per section**. See [BRANCHES.md](./BRANCHES.md)
 | **Tournament** | Scheduling, MTT state, virtual payouts, leaderboards |
 | **Cosmetics** | SKUs, purchase → ownership, entitlement checks |
 | **Flat test client** | CLI/web debug driver for a full multi-player hand |
-| **VR client** | Unity + Meta XR, interaction, Photon, rendering, audio, store |
+| **VR client** | Unity + Meta XR, interaction, netcode, rendering, audio, platform |
 
 ```text
   VR client (Unity / Quest)          Flat test client (CLI / web)
@@ -38,37 +38,82 @@ Work happens on **one git branch per section**. See [BRANCHES.md](./BRANCHES.md)
 - Cosmetics and tournament rewards are **virtual**. No cash → chip conversion, ever.
 - Auth is a **managed provider** (Supabase / Auth0 / Firebase). This repo does not build an auth system.
 
-## Quick map
-
-| Branch | Directory |
-|--------|-----------|
-| [`feat/deal-rng-service`](https://github.com/g8tsz/VR-Poker-/tree/feat/deal-rng-service) | `services/deal-rng/` |
-| [`feat/game-server`](https://github.com/g8tsz/VR-Poker-/tree/feat/game-server) | `services/game-server/` |
-| [`feat/ledger-service`](https://github.com/g8tsz/VR-Poker-/tree/feat/ledger-service) | `services/ledger/` |
-| [`feat/tournament-system`](https://github.com/g8tsz/VR-Poker-/tree/feat/tournament-system) | `services/tournament/` |
-| [`feat/cosmetics-economy`](https://github.com/g8tsz/VR-Poker-/tree/feat/cosmetics-economy) | `services/cosmetics/` |
-| [`feat/flat-test-client`](https://github.com/g8tsz/VR-Poker-/tree/feat/flat-test-client) | `clients/flat-test/` |
-| [`feat/infra-ops`](https://github.com/g8tsz/VR-Poker-/tree/feat/infra-ops) | `infra/` |
-| [`feat/vr-client-core`](https://github.com/g8tsz/VR-Poker-/tree/feat/vr-client-core) | `clients/vr/client-core/` |
-| [`feat/vr-interaction`](https://github.com/g8tsz/VR-Poker-/tree/feat/vr-interaction) | `clients/vr/interaction/` |
-| [`feat/vr-netcode`](https://github.com/g8tsz/VR-Poker-/tree/feat/vr-netcode) | `clients/vr/netcode/` |
-| [`feat/vr-rendering`](https://github.com/g8tsz/VR-Poker-/tree/feat/vr-rendering) | `clients/vr/rendering/` |
-| [`feat/vr-audio`](https://github.com/g8tsz/VR-Poker-/tree/feat/vr-audio) | `clients/vr/audio/` |
-| [`feat/vr-platform`](https://github.com/g8tsz/VR-Poker-/tree/feat/vr-platform) | `clients/vr/platform/` |
-
-Checkout a section, implement against its README checklist, open a PR into `main`.
-
-## Run (NLHE, buy-in, multi-seat)
+## Quick start
 
 ```bash
+git clone https://github.com/g8tsz/VR-Poker-.git
+cd VR-Poker-
 npm install
-npm test                 # engine, deal fairness, ledger
-npm run play             # terminal felt
-npm run dev              # HTTP + WS on :8787
+npm test                 # 50+ unit tests across packages and services
+npm run demo             # smoke: two bots play one hand against game-server
 ```
 
-## Stack (intended)
+### Local game server (minimal)
+
+```bash
+npm run dev              # game-server HTTP + WS on :8787
+npm run play             # terminal felt (another terminal)
+npm run web              # browser UI on :3080
+```
+
+### Full stack (Docker)
+
+```bash
+cp infra/.env.example infra/.env
+npm run stack            # Postgres + all services
+npm run migrate          # apply SQL migrations
+```
+
+| Service | Port | npm script |
+|---------|------|------------|
+| ledger | 8786 | `npm run ledger` |
+| game-server | 8787 | `npm run dev` |
+| deal-rng | 8788 | `npm run deal` |
+| tournament | 8789 | `npm run tournament` |
+| cosmetics | 8790 | `npm run cosmetics` |
+| flat-test web | 3080 | `npm run web` |
+
+See [infra/README.md](./infra/README.md) for auth, migrations, and deal audit logging.
+
+## VR client (Unity / Quest)
+
+Open [`clients/vr/Project/`](./clients/vr/Project/) in Unity Hub (2022.3 LTS + Android + Meta XR SDK).
+
+Symlink or copy into `Assets/VRPoker/`:
+
+| Folder | Module |
+|--------|--------|
+| `clients/vr/client-core/unity` | Scene bootstrap, table layout |
+| `clients/vr/netcode/unity` | WebSocket client, presence |
+| `clients/vr/interaction/unity` | Betting gestures, avatars |
+| `clients/vr/rendering/unity` | Cards, chips, cosmetic skins |
+| `clients/vr/audio/unity` | Spatial audio, table stingers |
+| `clients/vr/platform/unity` | Quest store compliance |
+
+Docs: [vr-client-core](./docs/vr-client-core.md) · [netcode](./docs/netcode-protocol.md) · [interaction](./docs/vr-interaction.md) · [rendering](./docs/vr-rendering.md) · [audio](./docs/audio.md) · [platform](./docs/vr-platform.md)
+
+## Monorepo map
+
+| Path | Package / service |
+|------|-------------------|
+| `packages/core` | NLHE engine, evaluator, pots |
+| `packages/deal` | CSPRNG shuffle |
+| `packages/ledger` | Append-only chips, clubs, ownership |
+| `packages/tournament` | MTT engine, payouts |
+| `packages/cosmetics` | SKU catalog, store |
+| `packages/auth` | JWT verify (managed provider) |
+| `packages/netcode` | WS protocol client (TS) |
+| `services/game-server` | Table FSM, HTTP/WS API |
+| `services/deal-rng` | Commit-reveal deal service |
+| `services/ledger` | Ledger HTTP API |
+| `services/tournament` | Tournament HTTP API |
+| `services/cosmetics` | Cosmetics HTTP API |
+| `clients/flat-test` | CLI + web debug client |
+| `clients/vr/*` | Unity C# modules (Quest) |
+| `infra` | Docker Compose, migrations, auth scripts |
+
+## Stack
 
 **Backend:** TypeScript services, Postgres, managed auth  
-**VR:** Unity + Meta XR SDK (Quest) + Photon Fusion / Realtime + Photon Voice  
+**VR:** Unity + Meta XR SDK (Quest) + Photon Realtime / Voice (optional)  
 **Ops:** Docker Compose locally; deal-service logs treated as audit evidence

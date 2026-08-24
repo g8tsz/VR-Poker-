@@ -2,15 +2,15 @@
 
 Unity / Meta Quest client. **Project root:** [`Project/`](./Project/) (open in Unity Hub).
 
-Work is split across branches:
+All modules live on `main` under `clients/vr/`:
 
-| Branch | Folder |
+| Folder | Module |
 |--------|--------|
-| `feat/vr-client-core` | [client-core/](./client-core/) + [Project/](./Project/) |
-| `feat/vr-interaction` | [interaction/](./interaction/) |
-| `feat/vr-netcode` | [netcode/](./netcode/) |
-| `feat/vr-rendering` | [rendering/](./rendering/) |
-| `feat/vr-audio` | [audio/](./audio/) |
-| `feat/vr-platform` | [platform/](./platform/) |
+| [client-core/](./client-core/) + [Project/](./Project/) | Scene bootstrap, spatial layout, Meta XR |
+| [netcode/](./netcode/) | WebSocket table client, presence interpolation |
+| [interaction/](./interaction/) | Betting gestures, action pads, avatars |
+| [rendering/](./rendering/) | Cards, chips, deal animation, cosmetic skins |
+| [audio/](./audio/) | Spatial audio, table stingers, Photon Voice scaffold |
+| [platform/](./platform/) | Quest store compliance, privacy/age gates |
 
-Create the Unity project on `feat/vr-client-core`, then other VR branches add to the same project.
+Wire all `*/unity` script folders into one Unity project — see [Project/README.md](./Project/README.md).

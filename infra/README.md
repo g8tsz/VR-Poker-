@@ -21,6 +21,7 @@ docker compose -f infra/docker-compose.yml up --build
 | Service | Port |
 |---------|------|
 | Postgres | 5432 |
+| ledger | 8786 |
 | game-server | 8787 |
 | deal-rng | 8788 |
 | tournament | 8789 |
