@@ -6,11 +6,33 @@ Store submission and device constraints.
 
 ## Checklist
 
-- [ ] Quest Store submission requirements (performance targets, comfort settings, review compliance)
-- [ ] Steam submission if pursued in parallel
+- [x] Quest Store requirements — performance, comfort, privacy (`QuestPerformanceBudget`, `QuestComfortPolicy`, gates)
+- [x] Steam parallel checklist (`SteamPlatformBootstrap`, `steam-checklist.md`)
+
+## Unity scripts
+
+`clients/vr/platform/unity/` — namespace `VRPoker.Platform`
+
+| Script | Purpose |
+|--------|---------|
+| `PlatformBootstrap` | Environment URLs, gates, compliance wiring |
+| `QuestPerformanceBudget` | 72 Hz target, FFR scaffold |
+| `QuestComfortPolicy` | Seated-only, no locomotion |
+| `PrivacyDisclosureController` | First-run data safety |
+| `AgeRatingGate` | Simulated gambling age confirm |
+| `ApplicationFocusHandler` | Pause / audio duck on focus loss |
+| `StoreComplianceRegistry` | QA checklist mirror |
+| `SteamPlatformBootstrap` | Steam Input / depot scaffold |
+| `BuildVersionStamp` | Debug version overlay |
+
+## Docs
+
+- [docs/vr-platform.md](../../../docs/vr-platform.md)
+- [quest-store-checklist.md](./quest-store-checklist.md)
+- [steam-checklist.md](./steam-checklist.md)
 
 ## Notes
 
-- Track: target frame rate, fixed foveated rendering, comfort (vignetting, snap vs smooth turn), privacy/age ratings, data-safety disclosures.
-- Quest review cares about comfort and performance; do not ship full locomotion as default for a seated card game.
-- Steam (if any) is a parallel checklist, not a second game design.
+- Target 72 Hz, FFR on Quest; seated comfort defaults.
+- Virtual chips only — compliance registry marks `virtual-only` satisfied by design.
+- Steam is parallel distribution, not a second game design.
