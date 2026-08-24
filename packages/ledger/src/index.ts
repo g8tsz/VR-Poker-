@@ -4,7 +4,9 @@ export type LedgerReason =
   | "add_on"
   | "cash_out"
   | "rake"
-  | "cosmetic_purchase";
+  | "cosmetic_purchase"
+  | "tournament_buy_in"
+  | "tournament_prize";
 
 export interface LedgerEntry {
   id: number;
@@ -69,5 +71,13 @@ export class ChipLedger {
 
   cashOut(userId: string, amount: number, tableId: string): LedgerEntry {
     return this.append(userId, amount, "cash_out", tableId);
+  }
+
+  tournamentBuyIn(userId: string, amount: number, tournamentId: string): LedgerEntry {
+    return this.append(userId, -amount, "tournament_buy_in", tournamentId);
+  }
+
+  tournamentPrize(userId: string, amount: number, tournamentId: string): LedgerEntry {
+    return this.append(userId, amount, "tournament_prize", tournamentId);
   }
 }
