@@ -8,9 +8,10 @@
     "clients/*"
   ],
   "scripts": {
-    "test": "npm test -w @vr-poker/core -w @vr-poker/deal -w @vr-poker/ledger -w @vr-poker/tournament",
+    "test": "npm test -w @vr-poker/core -w @vr-poker/deal -w @vr-poker/ledger -w @vr-poker/tournament -w @vr-poker/cosmetics",
     "dev": "npm run dev -w @vr-poker/game-server",
     "tournament": "npm run dev -w @vr-poker/tournament-service",
+    "cosmetics": "npm run dev -w @vr-poker/cosmetics-service",
     "play": "npm run play -w @vr-poker/flat-test"
   },
   "engines": {
