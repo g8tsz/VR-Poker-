@@ -14,7 +14,7 @@ Open this folder as the Unity project root (`clients/vr/Project`).
    - `../interaction/unity`
    - `../audio/unity`
    - `../platform/unity`
-   - (later) `../rendering/unity`
+   - `../rendering/unity`
 
 ## Scene hierarchy (recommended)
 
@@ -37,6 +37,10 @@ VrAppBootstrap
 │   ├── PlatformBootstrap
 │   ├── QuestPerformanceBudget + QuestComfortPolicy
 │   └── Privacy / Age gates
+├── Rendering
+│   ├── RenderingBootstrap + TableRenderer
+│   ├── BoardRenderer + HoleCardRenderer
+│   └── ChipStackRenderer + CardPool
 └── AudioBus + VrAudioSession + TableAudioDirector
 ```
 
