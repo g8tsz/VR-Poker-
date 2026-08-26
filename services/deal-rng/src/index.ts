@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { corsHeaders } from "@vr-poker/auth";
 import { initDealAuditDb } from "./audit-db.ts";
 import { DealRngError, DealRngService } from "./service.ts";
 import { AppendOnlyHistory } from "./history.ts";
@@ -16,7 +17,7 @@ function historyPath(): string {
 const service = new DealRngService(new AppendOnlyHistory(historyPath()));
 
 function json(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { "content-type": "application/json", "access-control-allow-origin": "*" });
+  res.writeHead(status, { "content-type": "application/json", ...corsHeaders() });
   res.end(JSON.stringify(body, null, 2));
 }
 
@@ -31,11 +32,7 @@ async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> 
 const server = createServer(async (req, res) => {
   try {
     if (req.method === "OPTIONS") {
-      res.writeHead(204, {
-        "access-control-allow-origin": "*",
-        "access-control-allow-methods": "GET,POST,OPTIONS",
-        "access-control-allow-headers": "content-type",
-      });
+      res.writeHead(204, corsHeaders());
       res.end();
       return;
     }

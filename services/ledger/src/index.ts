@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { AuthError, authConfigFromEnv, requireAuthHeader } from "@vr-poker/auth";
+import { AuthError, authConfigFromEnv, corsHeaders, requireAuthHeader } from "@vr-poker/auth";
 import {
   LedgerError,
   MemoryLedgerStore,
@@ -13,7 +13,7 @@ const store: LedgerStore = process.env.DATABASE_URL
   : new MemoryLedgerStore();
 
 function json(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { "content-type": "application/json", "access-control-allow-origin": "*" });
+  res.writeHead(status, { "content-type": "application/json", ...corsHeaders() });
   res.end(JSON.stringify(body, null, 2));
 }
 
@@ -46,11 +46,9 @@ async function resolveSubject(req: IncomingMessage, body: Record<string, unknown
 const server = createServer(async (req, res) => {
   try {
     if (req.method === "OPTIONS") {
-      res.writeHead(204, {
-        "access-control-allow-origin": "*",
+      res.writeHead(204, corsHeaders({
         "access-control-allow-methods": "GET, POST, PATCH, DELETE, OPTIONS",
-        "access-control-allow-headers": "content-type, authorization",
-      });
+      }));
       res.end();
       return;
     }

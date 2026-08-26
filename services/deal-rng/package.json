@@ -8,6 +8,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@vr-poker/auth": "0.1.0",
     "@vr-poker/core": "0.1.0",
     "@vr-poker/deal": "0.1.0",
     "pg": "^8.16.3"

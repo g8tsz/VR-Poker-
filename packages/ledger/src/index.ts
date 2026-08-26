@@ -5,5 +5,6 @@ export { OwnershipLedger, type OwnershipSource, type OwnershipEntry } from "./ow
 export { ClubRegistry } from "./clubs.ts";
 export { MemoryLedgerStore } from "./memory-store.ts";
 export { PgLedgerStore, createPgLedgerStore } from "./pg-store.ts";
+export { resolveLedgerStore } from "./resolve-store.ts";
 export type { LedgerStore } from "./store.ts";
 export type { Club, ClubMember, ClubRole, ClubTableConfig, UserAccount } from "./types.ts";

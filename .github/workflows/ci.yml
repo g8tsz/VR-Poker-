@@ -25,3 +25,19 @@ jobs:
 
       - name: Demo smoke (local session)
         run: npm run demo
+
+  auth:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+      - name: Auth guard tests
+        run: npm test -w @vr-poker/auth -w @vr-poker/game-server
+        env:
+          AUTH_DISABLED: "0"

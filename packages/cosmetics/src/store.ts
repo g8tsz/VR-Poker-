@@ -1,4 +1,5 @@
-import { ChipLedger, LedgerError, OwnershipLedger } from "@vr-poker/ledger";
+import { LedgerError, type LedgerStore } from "@vr-poker/ledger";
+import { OwnershipLedger } from "@vr-poker/ledger";
 import { catalogById } from "./catalog.ts";
 import { CosmeticsError } from "./errors.ts";
 import type { CosmeticSku, PurchaseResult } from "./types.ts";
@@ -8,7 +9,7 @@ export class CosmeticStore {
 
   constructor(
     catalog: CosmeticSku[],
-    private readonly chips: ChipLedger,
+    private readonly ledger: LedgerStore,
     private readonly ownership: OwnershipLedger,
   ) {
     this.skus = catalogById(catalog);
@@ -41,14 +42,20 @@ export class CosmeticStore {
       .filter((s): s is CosmeticSku => Boolean(s));
   }
 
-  purchase(userId: string, skuId: string): PurchaseResult {
+  async purchase(userId: string, skuId: string): Promise<PurchaseResult> {
     const sku = this.getSku(skuId);
     if (this.ownership.owns(userId, skuId)) {
       throw new CosmeticsError("already owned");
     }
     let ledgerEntry;
     try {
-      ledgerEntry = this.chips.cosmeticPurchase(userId, sku.priceChips, skuId);
+      await this.ledger.ensureUser(userId);
+      ledgerEntry = await this.ledger.append(
+        userId,
+        -sku.priceChips,
+        "cosmetic_purchase",
+        skuId,
+      );
     } catch (err) {
       if (err instanceof LedgerError) throw new CosmeticsError(err.message);
       throw err;

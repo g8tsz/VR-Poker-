@@ -47,6 +47,8 @@ services:
       AUTH_DEV_SECRET: ${AUTH_DEV_SECRET:-vr-poker-dev-secret-change-me}
       AUTH_ISSUER: ${AUTH_ISSUER:-vr-poker-local}
       AUTH_AUDIENCE: ${AUTH_AUDIENCE:-vr-poker-api}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      SERVICE_AUTH_TOKEN: ${SERVICE_AUTH_TOKEN:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -68,6 +70,7 @@ services:
       DEAL_PORT: 8788
       DEAL_HISTORY: /app/data/hand-history.jsonl
       DATABASE_URL: postgres://${POSTGRES_USER:-vrpoker}:${POSTGRES_PASSWORD:-vrpoker}@postgres:5432/${POSTGRES_DB:-vrpoker}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
     logging:
       driver: json-file
       options:
@@ -87,9 +90,17 @@ services:
       - "8789:8789"
     environment:
       PORT: 8789
+      DATABASE_URL: postgres://${POSTGRES_USER:-vrpoker}:${POSTGRES_PASSWORD:-vrpoker}@postgres:5432/${POSTGRES_DB:-vrpoker}
+      AUTH_DISABLED: ${AUTH_DISABLED:-1}
+      AUTH_DEV_SECRET: ${AUTH_DEV_SECRET:-vr-poker-dev-secret-change-me}
+      AUTH_ISSUER: ${AUTH_ISSUER:-vr-poker-local}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:-vr-poker-api}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
     depends_on:
       migrate:
         condition: service_completed_successfully
+      ledger:
+        condition: service_started
 
   cosmetics:
     image: node:20-alpine
@@ -101,9 +112,17 @@ services:
       - "8790:8790"
     environment:
       PORT: 8790
+      DATABASE_URL: postgres://${POSTGRES_USER:-vrpoker}:${POSTGRES_PASSWORD:-vrpoker}@postgres:5432/${POSTGRES_DB:-vrpoker}
+      AUTH_DISABLED: ${AUTH_DISABLED:-1}
+      AUTH_DEV_SECRET: ${AUTH_DEV_SECRET:-vr-poker-dev-secret-change-me}
+      AUTH_ISSUER: ${AUTH_ISSUER:-vr-poker-local}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:-vr-poker-api}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
     depends_on:
       migrate:
         condition: service_completed_successfully
+      ledger:
+        condition: service_started
 
   ledger:
     image: node:20-alpine
@@ -120,6 +139,7 @@ services:
       AUTH_DEV_SECRET: ${AUTH_DEV_SECRET:-vr-poker-dev-secret-change-me}
       AUTH_ISSUER: ${AUTH_ISSUER:-vr-poker-local}
       AUTH_AUDIENCE: ${AUTH_AUDIENCE:-vr-poker-api}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
     depends_on:
       migrate:
         condition: service_completed_successfully

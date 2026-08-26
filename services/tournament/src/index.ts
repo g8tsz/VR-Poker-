@@ -1,6 +1,13 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
-import { ChipLedger, LedgerError } from "@vr-poker/ledger";
+import {
+  AuthError,
+  authConfigFromEnv,
+  corsHeaders,
+  requireAuthHeader,
+  resolveSubject,
+} from "@vr-poker/auth";
+import { LedgerError, resolveLedgerStore } from "@vr-poker/ledger";
 import {
   Tournament,
   TournamentError,
@@ -11,12 +18,12 @@ import {
 } from "@vr-poker/tournament";
 
 const PORT = Number(process.env.PORT ?? 8789);
-const ledger = new ChipLedger();
+const ledger = resolveLedgerStore();
 const tournaments = new Map<string, Tournament>();
 const scheduler = new TournamentScheduler();
 
 function json(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { "content-type": "application/json", "access-control-allow-origin": "*" });
+  res.writeHead(status, { "content-type": "application/json", ...corsHeaders() });
   res.end(JSON.stringify(body, null, 2));
 }
 
@@ -28,10 +35,8 @@ async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> 
   return JSON.parse(raw) as Record<string, unknown>;
 }
 
-function ensureAccount(playerId: string): void {
-  if (ledger.history(playerId).length === 0) {
-    ledger.append(playerId, 100_000, "seed", "welcome");
-  }
+async function ensureAccount(playerId: string): Promise<void> {
+  await ledger.ensureUser(playerId);
 }
 
 function tournamentOrThrow(id: string): Tournament {
@@ -57,18 +62,22 @@ function wireAutoStart(t: Tournament): void {
   });
 }
 
-function payPrizes(t: Tournament): void {
+async function payPrizes(t: Tournament): Promise<void> {
   const snap = t.snapshot();
   if (snap.status !== "completed") return;
   for (const row of snap.payouts) {
     if (row.chips > 0) {
-      ledger.tournamentPrize(row.playerId, row.chips, snap.id);
+      await ledger.append(row.playerId, row.chips, "tournament_prize", snap.id);
     }
   }
   recordLeaderboard(t);
 }
 
 function handleError(res: ServerResponse, err: unknown): void {
+  if (err instanceof AuthError) {
+    json(res, 401, { error: err.message });
+    return;
+  }
   if (err instanceof TournamentError || err instanceof LedgerError) {
     json(res, 400, { error: err.message });
     return;
@@ -80,19 +89,21 @@ function handleError(res: ServerResponse, err: unknown): void {
 const server = createServer(async (req, res) => {
   try {
     if (req.method === "OPTIONS") {
-      res.writeHead(204, {
-        "access-control-allow-origin": "*",
-        "access-control-allow-methods": "GET, POST, OPTIONS",
-        "access-control-allow-headers": "content-type",
-      });
+      res.writeHead(204, corsHeaders());
       res.end();
       return;
     }
 
     const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
+    const authOpts = authConfigFromEnv();
 
     if (req.method === "GET" && url.pathname === "/health") {
-      json(res, 200, { ok: true, service: "tournament", tournaments: tournaments.size });
+      json(res, 200, {
+        ok: true,
+        service: "tournament",
+        tournaments: tournaments.size,
+        ledger: process.env.DATABASE_URL ? "postgres" : "memory",
+      });
       return;
     }
 
@@ -141,11 +152,11 @@ const server = createServer(async (req, res) => {
 
       if (req.method === "POST" && action === "/register") {
         const body = await readBody(req);
-        const playerId = String(body.playerId ?? "");
+        const authUser = await requireAuthHeader(req.headers.authorization, authOpts);
+        const playerId = resolveSubject(authUser, String(body.playerId ?? ""));
         const name = String(body.name ?? playerId);
-        if (!playerId) throw new TournamentError("playerId required");
-        ensureAccount(playerId);
-        ledger.tournamentBuyIn(playerId, t.snapshot().buyIn, t.id);
+        await ensureAccount(playerId);
+        await ledger.append(playerId, -t.snapshot().buyIn, "tournament_buy_in", t.id);
         t.register(playerId, name);
         json(res, 200, t.snapshot());
         return;
@@ -160,10 +171,10 @@ const server = createServer(async (req, res) => {
 
       if (req.method === "POST" && action === "/bust") {
         const body = await readBody(req);
-        const playerId = String(body.playerId ?? "");
-        if (!playerId) throw new TournamentError("playerId required");
+        const authUser = await requireAuthHeader(req.headers.authorization, authOpts);
+        const playerId = resolveSubject(authUser, String(body.playerId ?? ""));
         t.bust(playerId);
-        payPrizes(t);
+        await payPrizes(t);
         json(res, 200, t.snapshot());
         return;
       }

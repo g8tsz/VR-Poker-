@@ -112,3 +112,5 @@ export function handResultJson(input: {
     2,
   );
 }
+
+export { blockOn } from "./block-promise.ts";

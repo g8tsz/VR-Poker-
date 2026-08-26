@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { LegalAction, PlayerAction, TableSnapshot } from "@vr-poker/core";
 import { fixedDeal } from "@vr-poker/core";
 import { TableClient } from "@vr-poker/netcode";
@@ -53,6 +53,10 @@ function connectClient(
 }
 
 describe("integration: two WS clients play one hand", () => {
+  beforeEach(() => {
+    process.env.AUTH_DISABLED = "1";
+  });
+
   it("sit → start → bet streets → payout → waiting", async () => {
     const handle = createGameServer({
       port: 0,

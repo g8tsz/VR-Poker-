@@ -70,3 +70,36 @@ export async function requireAuthHeader(
   if (!token) throw new AuthError("missing bearer token");
   return verifyAccessToken(token, opts);
 }
+
+export function authEnabled(): boolean {
+  return process.env.AUTH_DISABLED !== "1";
+}
+
+/** When auth is on, subject comes from the JWT; claimed body/query id must match or be omitted. */
+export function resolveSubject(authUser: AuthUser | null, claimed?: string): string {
+  if (!authEnabled()) {
+    const id = claimed?.trim();
+    if (!id) throw new AuthError("playerId required");
+    return id;
+  }
+  if (!authUser) throw new AuthError("missing bearer token");
+  const claimedId = claimed?.trim();
+  if (claimedId && claimedId !== authUser.subject) {
+    throw new AuthError("playerId does not match token subject");
+  }
+  return authUser.subject;
+}
+
+/** Verify WebSocket upgrade: token via ?token= or Authorization header. */
+export async function verifyWsAuth(
+  url: URL,
+  headers: import("node:http").IncomingHttpHeaders,
+): Promise<AuthUser | null> {
+  if (!authEnabled()) return null;
+  const token =
+    url.searchParams.get("token") ?? bearerFromHeader(headers.authorization ?? null);
+  if (!token) throw new AuthError("missing bearer token");
+  return verifyAccessToken(token, authConfigFromEnv());
+}
+
+export { corsOrigin, corsHeaders } from "./http.ts";

@@ -1,12 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { ChipLedger } from "@vr-poker/ledger";
-import { OwnershipLedger } from "@vr-poker/ledger";
+import { MemoryLedgerStore, OwnershipLedger } from "@vr-poker/ledger";
 import { CosmeticStore, CosmeticsError, DEFAULT_CATALOG } from "../index.ts";
 
 function store(): CosmeticStore {
-  const chips = new ChipLedger();
-  const ownership = new OwnershipLedger();
-  return new CosmeticStore(DEFAULT_CATALOG, chips, ownership);
+  return new CosmeticStore(DEFAULT_CATALOG, new MemoryLedgerStore(), new OwnershipLedger());
 }
 
 describe("CosmeticStore", () => {
@@ -16,31 +13,30 @@ describe("CosmeticStore", () => {
     expect(s.catalog().every((sku) => sku.grantsChips === 0)).toBe(true);
   });
 
-  it("purchases with chip debit and grants ownership", () => {
-    const s = store();
-    const chips = new ChipLedger();
-    chips.append("u1", 10_000, "seed");
+  it("purchases with chip debit and grants ownership", async () => {
+    const ledger = new MemoryLedgerStore();
     const owned = new OwnershipLedger();
-    const shop = new CosmeticStore(DEFAULT_CATALOG, chips, owned);
+    const shop = new CosmeticStore(DEFAULT_CATALOG, ledger, owned);
     const sku = DEFAULT_CATALOG[0]!;
-    const result = shop.purchase("u1", sku.id);
+    const result = await shop.purchase("u1", sku.id);
     expect(result.priceChips).toBe(sku.priceChips);
-    expect(chips.balance("u1")).toBe(10_000 - sku.priceChips);
+    expect(await ledger.balance("u1")).toBe(100_000 - sku.priceChips);
     expect(shop.entitled("u1", sku.id)).toBe(true);
-    expect(chips.history("u1").some((e) => e.reason === "cosmetic_purchase")).toBe(true);
-    expect(s.catalog()).toBeDefined();
+    const history = await ledger.history("u1");
+    expect(history.some((e) => e.reason === "cosmetic_purchase")).toBe(true);
   });
 
-  it("rejects double purchase and insufficient chips", () => {
-    const chips = new ChipLedger();
-    chips.append("u1", 100, "seed");
+  it("rejects double purchase and insufficient chips", async () => {
+    const ledger = new MemoryLedgerStore();
+    await ledger.ensureUser("u1");
     const owned = new OwnershipLedger();
-    const shop = new CosmeticStore(DEFAULT_CATALOG, chips, owned);
+    const shop = new CosmeticStore(DEFAULT_CATALOG, ledger, owned);
     const sku = DEFAULT_CATALOG.find((s) => s.priceChips > 100)!;
-    expect(() => shop.purchase("u1", sku.id)).toThrow(CosmeticsError);
-    chips.append("u1", 50_000, "seed");
-    shop.purchase("u1", sku.id);
-    expect(() => shop.purchase("u1", sku.id)).toThrow(CosmeticsError);
+    await ledger.buyIn("u1", 100_000 - 50, "table");
+    await expect(shop.purchase("u1", sku.id)).rejects.toThrow(CosmeticsError);
+    await ledger.append("u1", 50_000, "seed", "top-up");
+    await shop.purchase("u1", sku.id);
+    await expect(shop.purchase("u1", sku.id)).rejects.toThrow(CosmeticsError);
   });
 
   it("never mints chips via catalog", () => {

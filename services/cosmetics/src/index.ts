@@ -1,14 +1,21 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+  AuthError,
+  authConfigFromEnv,
+  corsHeaders,
+  requireAuthHeader,
+  resolveSubject,
+} from "@vr-poker/auth";
 import { CosmeticStore, CosmeticsError, DEFAULT_CATALOG } from "@vr-poker/cosmetics";
-import { ChipLedger, LedgerError, OwnershipLedger } from "@vr-poker/ledger";
+import { LedgerError, OwnershipLedger, resolveLedgerStore } from "@vr-poker/ledger";
 
 const PORT = Number(process.env.PORT ?? 8790);
-const chips = new ChipLedger();
+const ledger = resolveLedgerStore();
 const ownership = new OwnershipLedger();
-const store = new CosmeticStore(DEFAULT_CATALOG, chips, ownership);
+const store = new CosmeticStore(DEFAULT_CATALOG, ledger, ownership);
 
 function json(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { "content-type": "application/json", "access-control-allow-origin": "*" });
+  res.writeHead(status, { "content-type": "application/json", ...corsHeaders() });
   res.end(JSON.stringify(body, null, 2));
 }
 
@@ -20,13 +27,11 @@ async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> 
   return JSON.parse(raw) as Record<string, unknown>;
 }
 
-function ensureAccount(userId: string): void {
-  if (chips.history(userId).length === 0) {
-    chips.append(userId, 100_000, "seed", "welcome");
-  }
-}
-
 function handleError(res: ServerResponse, err: unknown): void {
+  if (err instanceof AuthError) {
+    json(res, 401, { error: err.message });
+    return;
+  }
   if (err instanceof CosmeticsError || err instanceof LedgerError) {
     json(res, 400, { error: err.message });
     return;
@@ -38,19 +43,21 @@ function handleError(res: ServerResponse, err: unknown): void {
 const server = createServer(async (req, res) => {
   try {
     if (req.method === "OPTIONS") {
-      res.writeHead(204, {
-        "access-control-allow-origin": "*",
-        "access-control-allow-methods": "GET, POST, OPTIONS",
-        "access-control-allow-headers": "content-type",
-      });
+      res.writeHead(204, corsHeaders());
       res.end();
       return;
     }
 
     const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
+    const authOpts = authConfigFromEnv();
 
     if (req.method === "GET" && url.pathname === "/health") {
-      json(res, 200, { ok: true, service: "cosmetics", skus: store.catalog().length });
+      json(res, 200, {
+        ok: true,
+        service: "cosmetics",
+        skus: store.catalog().length,
+        ledger: process.env.DATABASE_URL ? "postgres" : "memory",
+      });
       return;
     }
 
@@ -64,25 +71,27 @@ const server = createServer(async (req, res) => {
 
     if (req.method === "POST" && url.pathname === "/v1/purchase") {
       const body = await readBody(req);
-      const userId = String(body.userId ?? "");
+      const authUser = await requireAuthHeader(req.headers.authorization, authOpts);
+      const userId = resolveSubject(authUser, String(body.userId ?? ""));
       const skuId = String(body.skuId ?? "");
-      if (!userId || !skuId) throw new CosmeticsError("userId and skuId required");
-      ensureAccount(userId);
-      const result = store.purchase(userId, skuId);
-      json(res, 200, { purchase: result, balance: chips.balance(userId) });
+      if (!skuId) throw new CosmeticsError("skuId required");
+      const result = await store.purchase(userId, skuId);
+      json(res, 200, { purchase: result, balance: await ledger.balance(userId) });
       return;
     }
 
     const ownedMatch = url.pathname.match(/^\/v1\/users\/([^/]+)\/owned$/);
     if (req.method === "GET" && ownedMatch) {
-      const userId = decodeURIComponent(ownedMatch[1]!);
+      const authUser = await requireAuthHeader(req.headers.authorization, authOpts);
+      const userId = resolveSubject(authUser, decodeURIComponent(ownedMatch[1]!));
       json(res, 200, { userId, owned: store.owned(userId) });
       return;
     }
 
     const entMatch = url.pathname.match(/^\/v1\/users\/([^/]+)\/entitlement\/([^/]+)$/);
     if (req.method === "GET" && entMatch) {
-      const userId = decodeURIComponent(entMatch[1]!);
+      const authUser = await requireAuthHeader(req.headers.authorization, authOpts);
+      const userId = resolveSubject(authUser, decodeURIComponent(entMatch[1]!));
       const skuId = decodeURIComponent(entMatch[2]!);
       json(res, 200, { userId, skuId, entitled: store.entitled(userId, skuId) });
       return;

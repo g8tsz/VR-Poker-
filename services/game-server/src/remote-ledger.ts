@@ -3,7 +3,7 @@ import type { ChipLedgerPort } from "./ledger-port.ts";
 
 export interface RemoteLedgerOptions {
   baseUrl: string;
-  authHeader?: string;
+  getAuthHeader?: () => string | undefined;
 }
 
 async function postJson(
@@ -37,19 +37,25 @@ async function getJson(url: string, authHeader?: string): Promise<Record<string,
   return data;
 }
 
+function authHeader(opts: RemoteLedgerOptions): string | undefined {
+  const service = process.env.SERVICE_AUTH_TOKEN;
+  if (service) return `Bearer ${service}`;
+  return opts.getAuthHeader?.();
+}
+
 export function remoteChipLedgerPort(opts: RemoteLedgerOptions): ChipLedgerPort {
   const base = opts.baseUrl.replace(/\/$/, "");
-  const auth = opts.authHeader;
+  const hdr = () => authHeader(opts);
 
   return {
     balance: async (playerId) => {
-      const data = await getJson(`${base}/v1/accounts/${encodeURIComponent(playerId)}`, auth);
+      const data = await getJson(`${base}/v1/accounts/${encodeURIComponent(playerId)}`, hdr());
       return Number(data.balance ?? 0);
     },
     history: async (playerId) => {
       const data = await getJson(
         `${base}/v1/accounts/${encodeURIComponent(playerId)}?history=1`,
-        auth,
+        hdr(),
       );
       return (data.history ?? []) as import("@vr-poker/ledger").LedgerEntry[];
     },
@@ -57,28 +63,28 @@ export function remoteChipLedgerPort(opts: RemoteLedgerOptions): ChipLedgerPort 
       await postJson(
         `${base}/v1/accounts`,
         { authSubject: playerId, displayName: name ?? playerId },
-        auth,
+        hdr(),
       );
     },
     buyIn: async (playerId, amount, tableId) => {
       await postJson(
         `${base}/v1/ledger/buy-in`,
         { authSubject: playerId, amount, ref: tableId },
-        auth,
+        hdr(),
       );
     },
     addOn: async (playerId, amount, tableId) => {
       await postJson(
         `${base}/v1/ledger/buy-in`,
         { authSubject: playerId, amount, ref: `${tableId}:add-on` },
-        auth,
+        hdr(),
       );
     },
     cashOut: async (playerId, amount, tableId) => {
       await postJson(
         `${base}/v1/ledger/cash-out`,
         { authSubject: playerId, amount, ref: tableId },
-        auth,
+        hdr(),
       );
     },
   };
