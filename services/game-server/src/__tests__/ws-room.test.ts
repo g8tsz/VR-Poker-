@@ -3,6 +3,7 @@ import { WebSocket } from "ws";
 import { Table, fixedDeal } from "@vr-poker/core";
 import { ChipLedger } from "@vr-poker/ledger";
 import { parseServerMessage } from "@vr-poker/netcode";
+import { localChipLedgerPort } from "../ledger-port.ts";
 import { TableRoom } from "../ws.ts";
 
 const DECK =
@@ -23,6 +24,7 @@ function mockSocket(): { ws: WebSocket; sent: string[] } {
 function makeRoom(tableId = "t1") {
   const tables = new Map<string, Table>();
   const ledger = new ChipLedger();
+  const ledgerPort = localChipLedgerPort(ledger);
   const names = new Map<string, string>();
   const table = new Table(tableId, fixedDeal(DECK), {
     seats: 2,
@@ -56,9 +58,9 @@ function makeRoom(tableId = "t1") {
     },
     tableOps: {
       tables,
-      ledger,
+      ledger: ledgerPort,
       names,
-      ensureAccount: (pid, name) => {
+      ensureAccount: async (pid, name) => {
         if (name) names.set(pid, name);
         if (ledger.history(pid).length === 0) ledger.append(pid, 100_000, "seed");
       },

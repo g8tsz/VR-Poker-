@@ -75,7 +75,11 @@ export class TableRoom {
     }
   }
 
-  handleMessage(client: TableSocket, raw: string): void {
+  handleMessage(client: TableSocket, raw: string): Promise<void> {
+    return this.handleMessageInner(client, raw);
+  }
+
+  private async handleMessageInner(client: TableSocket, raw: string): Promise<void> {
     const msg = parseClientMessage(raw);
     if (!msg) {
       client.ws.send(encodeServerMessage({ type: "error", message: "invalid message" }));
@@ -115,7 +119,7 @@ export class TableRoom {
         return;
       }
       try {
-        sitAtTable(
+        await sitAtTable(
           this.deps.tableOps,
           this.tableId,
           client.playerId,
@@ -141,7 +145,7 @@ export class TableRoom {
         return;
       }
       try {
-        const cashedOut = leaveTable(this.deps.tableOps, this.tableId, client.playerId);
+        const cashedOut = await leaveTable(this.deps.tableOps, this.tableId, client.playerId);
         this.presence.delete(client.playerId);
         this.presenceLastAt.delete(client.playerId);
         this.broadcastPresence();

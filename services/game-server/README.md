@@ -40,6 +40,15 @@ curl -s -X POST localhost:8787/tables/felt-1/act -H "content-type: application/j
 
 WebSocket: `ws://127.0.0.1:8787/ws?tableId=felt-1&playerId=alice` — protocol v1 (`@vr-poker/netcode`). Send `{ "type": "action", "action": { "type": "fold" } }`; receive `{ "type": "state", "seq", "state" }` and `{ "type": "presence", "poses" }`. See [docs/netcode-protocol.md](../../docs/netcode-protocol.md).
 
+### Microservice integration
+
+| Env | Effect |
+|-----|--------|
+| `LEDGER_URL` | Buy-in / cash-out via ledger HTTP API (`/v1/ledger/*`) instead of in-process `ChipLedger` |
+| `DEAL_RNG_URL` | Mirror each hand open/draw/close to deal-rng for Postgres + JSONL audit (in-process shuffle unchanged) |
+
+Docker Compose sets both automatically. Local `npm run dev` omits them for fast iteration.
+
 ## Checklist
 
 - [x] Table state machine (`waiting` → `dealing` → betting streets → `showdown` → `payout`)

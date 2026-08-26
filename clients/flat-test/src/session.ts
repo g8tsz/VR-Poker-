@@ -58,6 +58,7 @@ export function createLocalSession(tableId = "felt-1"): FlatSession {
     },
     async act(playerId, action) {
       table.act(playerId, action);
+      if (table.needsHandFinalize()) table.finalizeHandIfComplete();
       return table.snapshot(playerId);
     },
     async snapshot(viewerId) {
