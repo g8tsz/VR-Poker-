@@ -1,0 +1,17 @@
+{
+  "dependencies": {
+    "com.unity.render-pipelines.universal": "14.0.12",
+    "com.unity.inputsystem": "1.11.2",
+    "com.unity.xr.management": "4.5.0",
+    "com.unity.xr.openxr": "1.14.0",
+    "com.unity.modules.xr": "1.0.0",
+    "com.unity.modules.androidjni": "1.0.0"
+  },
+  "scopedRegistries": [
+    {
+      "name": "Meta XR",
+      "url": "https://npm.developer.oculus.com",
+      "scopes": ["com.meta.xr"]
+    }
+  ]
+}

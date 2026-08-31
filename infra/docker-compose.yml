@@ -1,0 +1,149 @@
+name: vrpoker
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vrpoker}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vrpoker}
+      POSTGRES_DB: ${POSTGRES_DB:-vrpoker}
+    ports:
+      - "5432:5432"
+    volumes:
+      - vrpoker_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vrpoker} -d ${POSTGRES_DB:-vrpoker}"]
+      interval: 3s
+      timeout: 3s
+      retries: 12
+
+  migrate:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ..:/app
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-vrpoker}:${POSTGRES_PASSWORD:-vrpoker}@postgres:5432/${POSTGRES_DB:-vrpoker}
+    command: sh -c "npm ci && npm run migrate -w @vr-poker/infra"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  game-server:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ..:/app
+    command: sh -c "npm ci && npm run dev -w @vr-poker/game-server"
+    ports:
+      - "8787:8787"
+    environment:
+      PORT: 8787
+      LEDGER_URL: http://ledger:8786
+      DEAL_RNG_URL: http://deal-rng:8788
+      DATABASE_URL: postgres://${POSTGRES_USER:-vrpoker}:${POSTGRES_PASSWORD:-vrpoker}@postgres:5432/${POSTGRES_DB:-vrpoker}
+      AUTH_DISABLED: ${AUTH_DISABLED:-1}
+      AUTH_DEV_SECRET: ${AUTH_DEV_SECRET:-vr-poker-dev-secret-change-me}
+      AUTH_ISSUER: ${AUTH_ISSUER:-vr-poker-local}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:-vr-poker-api}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      SERVICE_AUTH_TOKEN: ${SERVICE_AUTH_TOKEN:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      ledger:
+        condition: service_started
+      deal-rng:
+        condition: service_started
+
+  deal-rng:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ..:/app
+      - vrpoker_deal:/app/data
+    command: sh -c "npm ci && npm run dev -w @vr-poker/deal-rng"
+    ports:
+      - "8788:8788"
+    environment:
+      DEAL_PORT: 8788
+      DEAL_HISTORY: /app/data/hand-history.jsonl
+      DATABASE_URL: postgres://${POSTGRES_USER:-vrpoker}:${POSTGRES_PASSWORD:-vrpoker}@postgres:5432/${POSTGRES_DB:-vrpoker}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  tournament:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ..:/app
+    command: sh -c "npm ci && npm run dev -w @vr-poker/tournament-service"
+    ports:
+      - "8789:8789"
+    environment:
+      PORT: 8789
+      DATABASE_URL: postgres://${POSTGRES_USER:-vrpoker}:${POSTGRES_PASSWORD:-vrpoker}@postgres:5432/${POSTGRES_DB:-vrpoker}
+      AUTH_DISABLED: ${AUTH_DISABLED:-1}
+      AUTH_DEV_SECRET: ${AUTH_DEV_SECRET:-vr-poker-dev-secret-change-me}
+      AUTH_ISSUER: ${AUTH_ISSUER:-vr-poker-local}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:-vr-poker-api}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      ledger:
+        condition: service_started
+
+  cosmetics:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ..:/app
+    command: sh -c "npm ci && npm run dev -w @vr-poker/cosmetics-service"
+    ports:
+      - "8790:8790"
+    environment:
+      PORT: 8790
+      DATABASE_URL: postgres://${POSTGRES_USER:-vrpoker}:${POSTGRES_PASSWORD:-vrpoker}@postgres:5432/${POSTGRES_DB:-vrpoker}
+      AUTH_DISABLED: ${AUTH_DISABLED:-1}
+      AUTH_DEV_SECRET: ${AUTH_DEV_SECRET:-vr-poker-dev-secret-change-me}
+      AUTH_ISSUER: ${AUTH_ISSUER:-vr-poker-local}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:-vr-poker-api}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      ledger:
+        condition: service_started
+
+  ledger:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ..:/app
+    command: sh -c "npm ci && npm run dev -w @vr-poker/ledger-service"
+    ports:
+      - "8786:8786"
+    environment:
+      PORT: 8786
+      DATABASE_URL: postgres://${POSTGRES_USER:-vrpoker}:${POSTGRES_PASSWORD:-vrpoker}@postgres:5432/${POSTGRES_DB:-vrpoker}
+      AUTH_DISABLED: ${AUTH_DISABLED:-1}
+      AUTH_DEV_SECRET: ${AUTH_DEV_SECRET:-vr-poker-dev-secret-change-me}
+      AUTH_ISSUER: ${AUTH_ISSUER:-vr-poker-local}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:-vr-poker-api}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  vrpoker_pg:
+  vrpoker_deal:

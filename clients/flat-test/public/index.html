@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VR Poker — Flat Test</title>
+  <style>
+    :root { font-family: ui-monospace, Consolas, monospace; background: #0d1117; color: #e6edf3; }
+    body { max-width: 960px; margin: 0 auto; padding: 1rem; }
+    h1 { font-size: 1.1rem; font-weight: 600; }
+    fieldset { border: 1px solid #30363d; border-radius: 6px; margin: 1rem 0; padding: 0.75rem; }
+    legend { padding: 0 0.35rem; color: #8b949e; }
+    label { display: block; margin: 0.35rem 0; font-size: 0.85rem; }
+    input, button, select { font: inherit; padding: 0.35rem 0.5rem; border-radius: 4px; border: 1px solid #30363d; background: #161b22; color: inherit; }
+    button { cursor: pointer; margin-right: 0.35rem; margin-top: 0.35rem; }
+    button:hover { background: #21262d; }
+    #felt { white-space: pre-wrap; background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 1rem; min-height: 12rem; font-size: 0.8rem; }
+    .actions { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; }
+    .err { color: #f85149; }
+    .ok { color: #3fb950; }
+  </style>
+</head>
+<body>
+  <h1>VR Poker — flat test client (web)</h1>
+  <p>Server-authoritative debug felt. Connect to <code>npm run dev</code> game server.</p>
+
+  <fieldset>
+    <legend>Connection</legend>
+    <label>Game server URL <input id="server" value="http://127.0.0.1:8787" size="40" /></label>
+    <label>Table ID <input id="tableId" value="web-felt" /></label>
+    <label>Your player ID <input id="playerId" value="web-player" /></label>
+    <label>Display name <input id="playerName" value="Web Player" /></label>
+    <label>Bearer token (when auth on) <input id="authToken" size="40" placeholder="optional" /></label>
+    <label><input type="checkbox" id="useWs" checked /> Use WebSocket netcode</label>
+    <div class="actions">
+      <button type="button" id="btnHealth">Health</button>
+      <button type="button" id="btnCreateTable">Create table</button>
+      <button type="button" id="btnRefresh">Refresh state</button>
+    </div>
+    <p id="status"></p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Seat &amp; play</legend>
+    <label>Buy-in <input id="buyIn" type="number" value="5000" /></label>
+    <div class="actions">
+      <button type="button" id="btnSit">Sit</button>
+      <button type="button" id="btnStart">Start hand</button>
+      <button type="button" id="btnLeave">Leave</button>
+    </div>
+    <div class="actions" id="actionBar"></div>
+  </fieldset>
+
+  <div id="felt">Connect and create a table to begin.</div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const server = () => $("server").value.replace(/\/$/, "");
+    const tableId = () => $("tableId").value;
+    const playerId = () => $("playerId").value;
+    let ws = null;
+    let lastSnap = null;
+
+    function authHeaders() {
+      const token = $("authToken").value.trim();
+      const h = { "content-type": "application/json" };
+      if (token) h.authorization = "Bearer " + token;
+      return h;
+    }
+
+    function wsUrl() {
+      const base = server().replace(/^http/, "ws");
+      const token = $("authToken").value.trim();
+      let url = `${base}/ws?tableId=${encodeURIComponent(tableId())}&playerId=${encodeURIComponent(playerId())}`;
+      if (token) url += `&token=${encodeURIComponent(token)}`;
+      return url;
+    }
+
+    function connectWs() {
+      if (!$("useWs").checked) return;
+      if (ws) ws.close();
+      ws = new WebSocket(wsUrl());
+      ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === "state") {
+            lastSnap = msg.state;
+            render(msg.state);
+          }
+          if (msg.type === "error") setStatus(msg.message, false);
+        } catch (_) { /* ignore */ }
+      };
+      ws.onerror = () => setStatus("websocket error", false);
+    }
+
+    function wsSend(obj) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) throw new Error("websocket not connected");
+      ws.send(JSON.stringify(obj));
+    }
+
+    async function api(method, path, body) {
+      const res = await fetch(server() + path, {
+        method,
+        headers: body ? authHeaders() : ( $("authToken").value.trim() ? { authorization: authHeaders().authorization } : undefined ),
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || res.statusText);
+      return json;
+    }
+
+    function setStatus(msg, ok) {
+      const el = $("status");
+      el.textContent = msg;
+      el.className = ok ? "ok" : "err";
+    }
+
+    function render(snap) {
+      const lines = [];
+      lines.push(`table ${snap.tableId}  street=${snap.street}  hand=#${snap.handId}  pot=${snap.pot}`);
+      lines.push(`board ${(snap.board || []).join(" ") || "—"}  button=${snap.buttonSeat ?? "—"}  toAct=${snap.toActSeat ?? "—"}`);
+      if (snap.commitment) lines.push(`commit ${snap.commitment.slice(0, 24)}…`);
+      if (snap.reveal) lines.push(`reveal seed=${snap.reveal.seed.slice(0, 16)}…`);
+      for (const p of snap.players || []) {
+        if (!p.playerId) continue;
+        const hole = p.hole ? p.hole.join(" ") : "—";
+        lines.push(`seat ${p.seat}  ${p.name}  stack ${p.stack}  in ${p.streetCommit}  ${hole}`);
+      }
+      if (snap.legal?.length) lines.push("legal: " + snap.legal.map(a => a.type + (a.min != null ? " " + a.min : "")).join(" · "));
+      if (snap.winners?.length) lines.push("winners: " + snap.winners.map(w => `${w.playerId} +${w.amount}`).join(" | "));
+      for (const e of snap.lastEvents || []) lines.push("  · " + e);
+      $("felt").textContent = lines.join("\n");
+      renderActions(snap);
+    }
+
+    function renderActions(snap) {
+      const bar = $("actionBar");
+      bar.innerHTML = "";
+      if (!snap.legal?.length) return;
+      for (const a of snap.legal) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = a.type + (a.min != null ? ` (${a.min})` : "");
+        btn.onclick = () => act(a);
+        bar.appendChild(btn);
+      }
+    }
+
+    async function act(legal) {
+      try {
+        if ($("useWs").checked && ws?.readyState === WebSocket.OPEN) {
+          const action = { type: legal.type };
+          if (legal.type === "bet" || legal.type === "raise") action.amount = legal.min;
+          wsSend({ type: "action", action });
+          setStatus("ws acted " + legal.type, true);
+          return;
+        }
+        const body = { playerId: playerId(), type: legal.type };
+        if (legal.type === "bet" || legal.type === "raise") body.amount = legal.min;
+        const snap = await api("POST", `/tables/${encodeURIComponent(tableId())}/act`, body);
+        render(snap);
+        setStatus("acted " + legal.type, true);
+      } catch (e) {
+        setStatus(e.message, false);
+      }
+    }
+
+    $("btnHealth").onclick = async () => {
+      try {
+        const h = await api("GET", "/health");
+        setStatus("server ok · tables=" + h.tables, true);
+      } catch (e) { setStatus(e.message, false); }
+    };
+
+    $("btnCreateTable").onclick = async () => {
+      try {
+        await api("POST", "/accounts", { playerId: playerId(), name: $("playerName").value });
+        const snap = await api("POST", "/tables", { id: tableId() });
+        render(snap);
+        setStatus("table created", true);
+      } catch (e) { setStatus(e.message, false); }
+    };
+
+    $("btnSit").onclick = async () => {
+      try {
+        if ($("useWs").checked) {
+          connectWs();
+          await new Promise((r) => { ws.onopen = r; ws.onerror = () => r(); });
+          wsSend({ type: "sit", name: $("playerName").value, buyIn: Number($("buyIn").value) });
+          setStatus("seated via ws", true);
+          return;
+        }
+        const snap = await api("POST", `/tables/${encodeURIComponent(tableId())}/sit`, {
+          playerId: playerId(),
+          name: $("playerName").value,
+          buyIn: Number($("buyIn").value),
+        });
+        render(snap);
+        setStatus("seated", true);
+      } catch (e) { setStatus(e.message, false); }
+    };
+
+    $("btnStart").onclick = async () => {
+      try {
+        if ($("useWs").checked && ws?.readyState === WebSocket.OPEN) {
+          wsSend({ type: "start" });
+          setStatus("hand started via ws", true);
+          return;
+        }
+        const snap = await api("POST", `/tables/${encodeURIComponent(tableId())}/start`);
+        const mine = await api("GET", `/tables/${encodeURIComponent(tableId())}?playerId=${encodeURIComponent(playerId())}`);
+        render(mine);
+        setStatus("hand started", true);
+      } catch (e) { setStatus(e.message, false); }
+    };
+
+    $("btnLeave").onclick = async () => {
+      try {
+        if ($("useWs").checked && ws?.readyState === WebSocket.OPEN) {
+          wsSend({ type: "leave" });
+          setStatus("leave sent via ws", true);
+          return;
+        }
+        const res = await api("POST", `/tables/${encodeURIComponent(tableId())}/leave`, { playerId: playerId() });
+        setStatus("cashed out " + res.cashedOut + " · balance " + res.balance, true);
+      } catch (e) { setStatus(e.message, false); }
+    };
+
+    $("btnRefresh").onclick = async () => {
+      try {
+        const snap = await api("GET", `/tables/${encodeURIComponent(tableId())}?playerId=${encodeURIComponent(playerId())}`);
+        render(snap);
+        setStatus("refreshed", true);
+      } catch (e) { setStatus(e.message, false); }
+    };
+  </script>
+</body>
+</html>
